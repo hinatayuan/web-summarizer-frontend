@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="基于Mastra + DeepSeek的智能网页内容摘要工具，快速提取核心内容和关键信息。" />
+    <meta name="keywords" content="网页摘要,AI分析,内容提取,Mastra,DeepSeek,智能分析" />
+    <meta name="author" content="Web Summarizer Team" />
+    
+    <!-- Open Graph Meta Tags -->
+    <meta property="og:title" content="Web Summarizer - 智能网页摘要工具" />
+    <meta property="og:description" content="基于Mastra + DeepSeek的智能网页内容摘要工具，快速提取核心内容和关键信息。" />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://web-summarizer.example.com" />
+    <meta property="og:image" content="/og-image.png" />
+    
+    <!-- Twitter Card Meta Tags -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Web Summarizer - 智能网页摘要工具" />
+    <meta name="twitter:description" content="基于Mastra + DeepSeek的智能网页内容摘要工具，快速提取核心内容和关键信息。" />
+    <meta name="twitter:image" content="/og-image.png" />
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    
+    <!-- Theme Color -->
+    <meta name="theme-color" content="#3B82F6" />
+    
+    <!-- Preconnect to external domains for performance -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    
+    <!-- Title -->
+    <title>Web Summarizer - 智能网页摘要工具</title>
+    
+    <!-- Loading styles to prevent FOUC -->
+    <style>
+      html {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      }
+      
+      body {
+        margin: 0;
+        padding: 0;
+        background-color: #f9fafb;
+        color: #111827;
+      }
+      
+      #root {
+        min-height: 100vh;
+      }
+      
+      /* Loading spinner */
+      .loading-container {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background-color: #f9fafb;
+        z-index: 9999;
+      }
+      
+      .loading-spinner {
+        width: 40px;
+        height: 40px;
+        border: 3px solid #e5e7eb;
+        border-top: 3px solid #3b82f6;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+      }
+      
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+      
+      .loading-text {
+        margin-top: 16px;
+        color: #6b7280;
+        font-size: 14px;
+      }
+      
+      /* Hide loading when app loads */
+      .app-loaded .loading-container {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Loading indicator -->
+    <div class="loading-container">
+      <div>
+        <div class="loading-spinner"></div>
+        <div class="loading-text">正在加载 Web Summarizer...</div>
+      </div>
+    </div>
+    
+    <!-- Main app container -->
+    <div id="root"></div>
+    
+    <!-- Script to hide loading when app mounts -->
+    <script>
+      // Hide loading screen when React app mounts
+      window.addEventListener('load', function() {
+        setTimeout(function() {
+          document.body.classList.add('app-loaded');
+        }, 100);
+      });
+      
+      // Fallback: hide loading after 5 seconds
+      setTimeout(function() {
+        document.body.classList.add('app-loaded');
+      }, 5000);
+    </script>
+    
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

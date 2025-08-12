@@ -1,6 +1,7 @@
 import React from 'react';
 import { FileText, Clock, Key, Target, ExternalLink, Copy, Check, AlertTriangle } from 'lucide-react';
 import { SummaryData } from '../types';
+import { MarkdownRenderer } from './MarkdownRenderer';
 import { useState } from 'react';
 
 interface SummaryCardProps {
@@ -150,9 +151,10 @@ export const SummaryCard: React.FC<SummaryCardProps> = ({ data }) => {
         
         {hasValidSummary ? (
           <div className="prose prose-gray max-w-none">
-            <p className="text-gray-700 leading-relaxed whitespace-pre-line">
-              {safeRenderContent(data.summary)}
-            </p>
+            <MarkdownRenderer 
+              content={safeRenderContent(data.summary)}
+              className="text-gray-700"
+            />
           </div>
         ) : (
           <div className="flex items-center space-x-2 text-amber-600 bg-amber-50 p-3 rounded-lg">
@@ -186,9 +188,12 @@ export const SummaryCard: React.FC<SummaryCardProps> = ({ data }) => {
                 <span className="inline-flex items-center justify-center w-6 h-6 bg-green-500 text-white text-sm font-bold rounded-full flex-shrink-0 mt-0.5">
                   {index + 1}
                 </span>
-                <p className="text-gray-700 leading-relaxed">
-                  {safeRenderContent(point)}
-                </p>
+                <div className="flex-1">
+                  <MarkdownRenderer 
+                    content={safeRenderContent(point)}
+                    className="text-gray-700 text-sm"
+                  />
+                </div>
               </div>
             ))}
           </div>

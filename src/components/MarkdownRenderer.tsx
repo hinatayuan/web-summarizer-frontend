@@ -34,25 +34,8 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
       // 无序列表
       .replace(/^[\s]*[-*+] (.*)$/gm, '<li class="flex items-start mb-2"><span class="text-blue-500 mr-2 mt-1">•</span><span class="flex-1">$1</span></li>')
       
-      // 有序列表 - 修复 TypeScript 错误
-      .replace(/^[\s]*\d+\. (.*)$/gm, (fullMatch, p1, offset, string) => {
-        const lines = string.substring(0, offset).split('\n');
-        const currentLineIndex = lines.length - 1;
-        let number = 1;
-        
-        // 计算当前项目的编号
-        for (let i = currentLineIndex - 1; i >= 0; i--) {
-          if (lines[i].match(/^[\s]*\d+\. /)) {
-            number++;
-          } else if (lines[i].trim() === '') {
-            continue;
-          } else {
-            break;
-          }
-        }
-        
-        return `<li class="flex items-start mb-2"><span class="text-blue-600 font-semibold mr-2 mt-1 min-w-[1.5rem]">${number}.</span><span class="flex-1">${p1}</span></li>`;
-      })
+      // 有序列表 - 使用简化的方法，用静态编号
+      .replace(/^[\s]*\d+\. (.*)$/gm, '<li class="flex items-start mb-2"><span class="text-blue-600 font-semibold mr-2 mt-1 min-w-[1.5rem]">•</span><span class="flex-1">$1</span></li>')
       
       // 引用块
       .replace(/^> (.*)$/gm, '<blockquote class="border-l-4 border-blue-300 bg-blue-50 pl-4 py-2 my-4 italic text-gray-700">$1</blockquote>')

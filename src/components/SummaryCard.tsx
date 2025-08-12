@@ -1,5 +1,5 @@
 import React from 'react';
-import { FileText, Clock, Key, Target, ExternalLink, Copy, Check } from 'lucide-react';
+import { FileText, Clock, Key, Target, ExternalLink, Copy, Check, AlertTriangle } from 'lucide-react';
 import { SummaryData } from '../types';
 import { useState } from 'react';
 
@@ -17,14 +17,32 @@ export const SummaryCard: React.FC<SummaryCardProps> = ({ data }) => {
       setTimeout(() => setCopiedSection(null), 2000);
     } catch (error) {
       console.error('复制失败:', error);
+      // 降级方案：创建临时文本区域
+      const textArea = document.createElement('textarea');
+      textArea.value = text;
+      document.body.appendChild(textArea);
+      textArea.select();
+      try {
+        document.execCommand('copy');
+        setCopiedSection(section);
+        setTimeout(() => setCopiedSection(null), 2000);
+      } catch (fallbackError) {
+        console.error('降级复制方案也失败了:', fallbackError);
+      }
+      document.body.removeChild(textArea);
     }
   };
 
-  const CopyButton: React.FC<{ text: string; section: string }> = ({ text, section }) => (
+  const CopyButton: React.FC<{ text: string; section: string; disabled?: boolean }> = ({ 
+    text, 
+    section, 
+    disabled = false 
+  }) => (
     <button
-      onClick={() => copyToClipboard(text, section)}
-      className="p-1.5 text-gray-400 hover:text-gray-600 rounded transition-colors duration-200"
-      title="复制内容"
+      onClick={() => !disabled && copyToClipboard(text, section)}
+      disabled={disabled || !text || text.trim() === ''}
+      className="p-1.5 text-gray-400 hover:text-gray-600 rounded transition-colors duration-200 disabled:opacity-30 disabled:cursor-not-allowed"
+      title={disabled || !text ? "无内容可复制" : "复制内容"}
     >
       {copiedSection === section ? (
         <Check className="w-4 h-4 text-green-500" />
@@ -34,6 +52,55 @@ export const SummaryCard: React.FC<SummaryCardProps> = ({ data }) => {
     </button>
   );
 
+  // 处理可能的数据格式问题
+  const safeRenderContent = (content: any): string => {
+    if (typeof content === 'string') {
+      return content;
+    }
+    if (typeof content === 'object' && content !== null) {
+      // 如果是对象，尝试提取有用信息
+      if (content.content) return content.content;
+      if (content.text) return content.text;
+      if (content.summary) return content.summary;
+      // 最后尝试JSON序列化，但格式化输出
+      try {
+        return JSON.stringify(content, null, 2);
+      } catch {
+        return '数据格式错误';
+      }
+    }
+    return String(content || '无内容');
+  };
+
+  // 安全获取数组数据
+  const safeGetArray = (arr: any): any[] => {
+    if (Array.isArray(arr)) return arr;
+    if (typeof arr === 'string') {
+      // 尝试解析可能的字符串数组
+      try {
+        const parsed = JSON.parse(arr);
+        return Array.isArray(parsed) ? parsed : [arr];
+      } catch {
+        return [arr];
+      }
+    }
+    if (arr && typeof arr === 'object') {
+      // 如果是对象，尝试提取数组字段
+      const values = Object.values(arr);
+      return values.length > 0 ? values : [];
+    }
+    return [];
+  };
+
+  // 检查数据完整性
+  const hasValidSummary = data.summary && safeRenderContent(data.summary).trim() !== '';
+  const validKeyPoints = safeGetArray(data.keyPoints).filter(point => 
+    point && safeRenderContent(point).trim() !== ''
+  );
+  const validKeywords = safeGetArray(data.keywords).filter(keyword => 
+    keyword && safeRenderContent(keyword).trim() !== ''
+  );
+
   return (
     <div className="space-y-6">
       {/* 标题和基本信息 */}
@@ -41,7 +108,7 @@ export const SummaryCard: React.FC<SummaryCardProps> = ({ data }) => {
         <div className="flex items-start justify-between mb-4">
           <div className="flex-1">
             <h1 className="text-2xl font-bold text-gray-900 mb-2 leading-tight">
-              {data.title}
+              {safeRenderContent(data.title) || '网页分析结果'}
             </h1>
             {data.sourceUrl && (
               <a
@@ -58,7 +125,7 @@ export const SummaryCard: React.FC<SummaryCardProps> = ({ data }) => {
           <div className="flex items-center space-x-3 text-sm text-gray-500">
             <div className="flex items-center space-x-1">
               <Clock className="w-4 h-4" />
-              <span>{data.readingTime}</span>
+              <span>{data.readingTime || '未知'}</span>
             </div>
             {data.createdAt && (
               <span>{new Date(data.createdAt).toLocaleDateString('zh-CN')}</span>
@@ -74,17 +141,29 @@ export const SummaryCard: React.FC<SummaryCardProps> = ({ data }) => {
             <FileText className="w-5 h-5 text-primary-600" />
             <span>内容摘要</span>
           </h2>
-          <CopyButton text={data.summary} section="summary" />
+          <CopyButton 
+            text={safeRenderContent(data.summary)} 
+            section="summary" 
+            disabled={!hasValidSummary}
+          />
         </div>
-        <div className="prose prose-gray max-w-none">
-          <p className="text-gray-700 leading-relaxed whitespace-pre-line">
-            {data.summary}
-          </p>
-        </div>
+        
+        {hasValidSummary ? (
+          <div className="prose prose-gray max-w-none">
+            <p className="text-gray-700 leading-relaxed whitespace-pre-line">
+              {safeRenderContent(data.summary)}
+            </p>
+          </div>
+        ) : (
+          <div className="flex items-center space-x-2 text-amber-600 bg-amber-50 p-3 rounded-lg">
+            <AlertTriangle className="w-5 h-5" />
+            <span className="text-sm">暂无有效摘要内容</span>
+          </div>
+        )}
       </div>
 
       {/* 关键要点 */}
-      {data.keyPoints && data.keyPoints.length > 0 && (
+      {validKeyPoints.length > 0 ? (
         <div className="card">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-gray-900 flex items-center space-x-2">
@@ -92,12 +171,14 @@ export const SummaryCard: React.FC<SummaryCardProps> = ({ data }) => {
               <span>关键要点</span>
             </h2>
             <CopyButton 
-              text={data.keyPoints.map((point, index) => `${index + 1}. ${point}`).join('\n')} 
+              text={validKeyPoints.map((point, index) => 
+                `${index + 1}. ${safeRenderContent(point)}`
+              ).join('\n')} 
               section="keyPoints" 
             />
           </div>
           <div className="space-y-3">
-            {data.keyPoints.map((point, index) => (
+            {validKeyPoints.map((point, index) => (
               <div 
                 key={index} 
                 className="flex items-start space-x-3 p-3 bg-green-50 rounded-lg border border-green-100"
@@ -106,16 +187,23 @@ export const SummaryCard: React.FC<SummaryCardProps> = ({ data }) => {
                   {index + 1}
                 </span>
                 <p className="text-gray-700 leading-relaxed">
-                  {point}
+                  {safeRenderContent(point)}
                 </p>
               </div>
             ))}
           </div>
         </div>
+      ) : (
+        <div className="card bg-gray-50">
+          <div className="flex items-center space-x-2 text-gray-500">
+            <Target className="w-5 h-5" />
+            <span className="text-sm">未提取到关键要点</span>
+          </div>
+        </div>
       )}
 
       {/* 关键词 */}
-      {data.keywords && data.keywords.length > 0 && (
+      {validKeywords.length > 0 ? (
         <div className="card">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-gray-900 flex items-center space-x-2">
@@ -123,19 +211,26 @@ export const SummaryCard: React.FC<SummaryCardProps> = ({ data }) => {
               <span>关键词</span>
             </h2>
             <CopyButton 
-              text={data.keywords.join(', ')} 
+              text={validKeywords.map(keyword => safeRenderContent(keyword)).join(', ')} 
               section="keywords" 
             />
           </div>
           <div className="flex flex-wrap gap-2">
-            {data.keywords.map((keyword, index) => (
+            {validKeywords.map((keyword, index) => (
               <span
                 key={index}
                 className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800 border border-blue-200 hover:bg-blue-200 transition-colors duration-200"
               >
-                {keyword}
+                {safeRenderContent(keyword)}
               </span>
             ))}
+          </div>
+        </div>
+      ) : (
+        <div className="card bg-gray-50">
+          <div className="flex items-center space-x-2 text-gray-500">
+            <Key className="w-5 h-5" />
+            <span className="text-sm">未提取到关键词</span>
           </div>
         </div>
       )}
@@ -146,30 +241,55 @@ export const SummaryCard: React.FC<SummaryCardProps> = ({ data }) => {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
           <div className="text-center">
             <div className="text-2xl font-bold text-primary-600">
-              {data.keyPoints?.length || 0}
+              {validKeyPoints.length}
             </div>
             <div className="text-gray-600">关键要点</div>
           </div>
           <div className="text-center">
             <div className="text-2xl font-bold text-green-600">
-              {data.keywords?.length || 0}
+              {validKeywords.length}
             </div>
             <div className="text-gray-600">关键词</div>
           </div>
           <div className="text-center">
             <div className="text-2xl font-bold text-blue-600">
-              {data.highlights?.length || 0}
+              {safeGetArray(data.highlights).length}
             </div>
             <div className="text-gray-600">高亮片段</div>
           </div>
           <div className="text-center">
             <div className="text-2xl font-bold text-purple-600">
-              {data.readingTime}
+              {data.readingTime || '未知'}
             </div>
             <div className="text-gray-600">阅读时长</div>
           </div>
         </div>
       </div>
+
+      {/* 数据质量提示 */}
+      {(!hasValidSummary || validKeyPoints.length === 0) && (
+        <div className="card border-amber-200 bg-amber-50">
+          <div className="flex items-start space-x-3">
+            <AlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
+            <div>
+              <h3 className="text-sm font-medium text-amber-800 mb-1">
+                数据质量提示
+              </h3>
+              <p className="text-sm text-amber-700">
+                部分分析结果可能不完整。这可能是由于：
+              </p>
+              <ul className="text-xs text-amber-600 mt-1 ml-4 list-disc">
+                <li>网页内容复杂或受保护</li>
+                <li>API返回数据格式异常</li>
+                <li>网络连接不稳定</li>
+              </ul>
+              <p className="text-xs text-amber-600 mt-2">
+                建议尝试重新分析或使用流式分析模式。
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

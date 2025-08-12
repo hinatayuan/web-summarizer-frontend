@@ -1,5 +1,5 @@
-import React, { useState } from 'react'
-import { Search, Zap, Loader2, Link } from 'lucide-react'
+import React, { useState, useEffect } from 'react'
+import { Search, Zap, Loader2, Link, Eye } from 'lucide-react'
 import { LoadingState } from '../types'
 
 interface UrlInputProps {
@@ -10,6 +10,7 @@ interface UrlInputProps {
   ) => Promise<void>
   loadingState: LoadingState
   isStreaming: boolean
+  streamingContent?: string
   disabled?: boolean
 }
 
@@ -18,10 +19,22 @@ export const UrlInput: React.FC<UrlInputProps> = ({
   onAnalyzeStream,
   loadingState,
   isStreaming,
+  streamingContent = '',
   disabled = false
 }) => {
   const [url, setUrl] = useState('')
-  const [streamOutput, setStreamOutput] = useState('')
+  const [showStreamPreview, setShowStreamPreview] = useState(false)
+
+  // 自动显示流式预览
+  useEffect(() => {
+    if (isStreaming && streamingContent) {
+      setShowStreamPreview(true)
+    } else if (!isStreaming) {
+      // 延迟隐藏预览，让用户能看到完整结果
+      const timer = setTimeout(() => setShowStreamPreview(false), 2000)
+      return () => clearTimeout(timer)
+    }
+  }, [isStreaming, streamingContent])
 
   const isValidUrl = (url: string): boolean => {
     try {
@@ -36,6 +49,7 @@ export const UrlInput: React.FC<UrlInputProps> = ({
     if (!url.trim() || !isValidUrl(url) || loadingState.isLoading || disabled) {
       return
     }
+    setShowStreamPreview(false)
     await onAnalyze(url)
   }
 
@@ -44,32 +58,43 @@ export const UrlInput: React.FC<UrlInputProps> = ({
       return
     }
 
-    setStreamOutput('')
-    await onAnalyzeStream(url, (chunk) => {
-      setStreamOutput((prev) => prev + chunk)
-    })
+    setShowStreamPreview(true)
+    await onAnalyzeStream(url)
   }
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
-      handleAnalyze()
+      if (e.ctrlKey || e.metaKey) {
+        handleAnalyzeStream()
+      } else {
+        handleAnalyze()
+      }
     }
   }
 
   const getStageText = () => {
     switch (loadingState.stage) {
       case 'fetching':
-        return '正在获取网页内容...'
+        return isStreaming ? '连接流式服务...' : '正在获取网页内容...'
       case 'extracting':
-        return '正在提取关键信息...'
+        return isStreaming ? '开始流式提取...' : '正在提取关键信息...'
       case 'analyzing':
-        return '正在进行AI分析...'
+        return isStreaming ? '流式分析进行中...' : '正在进行AI分析...'
       case 'complete':
         return '分析完成'
       default:
         return '处理中...'
     }
+  }
+
+  const formatStreamContent = (content: string) => {
+    // 简单的格式化处理
+    return content
+      .replace(/\n\n/g, '\n')
+      .replace(/^#+\s*/gm, '')
+      .replace(/\*\*(.*?)\*\*/g, '$1')
+      .trim()
   }
 
   return (
@@ -102,6 +127,13 @@ export const UrlInput: React.FC<UrlInputProps> = ({
             />
           </div>
 
+          {/* 快捷键提示 */}
+          {url.trim() && isValidUrl(url) && !loadingState.isLoading && (
+            <div className="text-xs text-gray-500 text-center">
+              按 Enter 开始分析 • 按 Ctrl+Enter 流式分析
+            </div>
+          )}
+
           {/* 按钮组 */}
           <div className="flex flex-col sm:flex-row gap-3">
             <button
@@ -122,7 +154,7 @@ export const UrlInput: React.FC<UrlInputProps> = ({
               <span>
                 {loadingState.isLoading && !isStreaming
                   ? '分析中...'
-                  : '开始分析'}
+                  : '标准分析'}
               </span>
             </button>
 
@@ -162,19 +194,57 @@ export const UrlInput: React.FC<UrlInputProps> = ({
             </div>
             <div className="w-full bg-gray-200 rounded-full h-2">
               <div
-                className="bg-gradient-to-r from-primary-500 to-primary-600 h-2 rounded-full transition-all duration-300 ease-out"
+                className={`h-2 rounded-full transition-all duration-300 ease-out ${
+                  isStreaming 
+                    ? 'bg-gradient-to-r from-purple-500 to-blue-500' 
+                    : 'bg-gradient-to-r from-primary-500 to-primary-600'
+                }`}
                 style={{ width: `${loadingState.progress}%` }}
               />
             </div>
           </div>
         )}
 
-        {/* 流式输出显示 */}
-        {isStreaming && streamOutput && (
-          <div className="bg-gray-50 border rounded-lg p-4 max-h-40 overflow-y-auto">
-            <div className="text-sm text-gray-700 whitespace-pre-wrap font-mono">
-              {streamOutput}
+        {/* 流式输出实时预览 */}
+        {showStreamPreview && (streamingContent || isStreaming) && (
+          <div className="bg-gradient-to-br from-purple-50 to-blue-50 border border-purple-200 rounded-lg p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center space-x-2">
+                <Eye className="w-4 h-4 text-purple-600" />
+                <span className="text-sm font-medium text-purple-800">
+                  实时分析预览
+                </span>
+              </div>
+              <button
+                onClick={() => setShowStreamPreview(false)}
+                className="text-purple-600 hover:text-purple-800 text-sm"
+              >
+                隐藏
+              </button>
             </div>
+            
+            <div className="max-h-64 overflow-y-auto">
+              <div className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
+                {streamingContent ? formatStreamContent(streamingContent) : (
+                  <div className="flex items-center space-x-2 text-purple-600">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>等待流式内容...</span>
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            {/* 流式进度指示器 */}
+            {isStreaming && (
+              <div className="mt-3 flex items-center space-x-2 text-xs text-purple-600">
+                <div className="flex space-x-1">
+                  <div className="w-2 h-2 bg-purple-400 rounded-full animate-pulse"></div>
+                  <div className="w-2 h-2 bg-purple-400 rounded-full animate-pulse" style={{animationDelay: '0.2s'}}></div>
+                  <div className="w-2 h-2 bg-purple-400 rounded-full animate-pulse" style={{animationDelay: '0.4s'}}></div>
+                </div>
+                <span>正在实时生成内容...</span>
+              </div>
+            )}
           </div>
         )}
 

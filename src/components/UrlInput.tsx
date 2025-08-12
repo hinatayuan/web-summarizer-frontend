@@ -1,207 +1,211 @@
-import React, { useState } from 'react';
-import { Search, Loader2, Globe, Zap } from 'lucide-react';
-import { LoadingState } from '../types';
+import React, { useState } from 'react'
+import { Search, Zap, Loader2, Link } from 'lucide-react'
+import { LoadingState } from '../types'
 
 interface UrlInputProps {
-  onAnalyze: (url: string) => Promise<void>;
-  onAnalyzeStream?: (url: string, onChunk?: (chunk: string) => void) => Promise<void>;
-  loadingState: LoadingState;
-  isStreaming?: boolean;
-  disabled?: boolean;
+  onAnalyze: (url: string) => Promise<void>
+  onAnalyzeStream: (
+    url: string,
+    onChunk?: (chunk: string) => void
+  ) => Promise<void>
+  loadingState: LoadingState
+  isStreaming: boolean
+  disabled?: boolean
 }
 
-const EXAMPLE_URLS = [
-  'https://blog.github.com',
-  'https://techcrunch.com/latest',
-  'https://news.ycombinator.com',
-  'https://www.theverge.com'
-];
-
-const STAGE_LABELS = {
-  fetching: '正在获取网页内容...',
-  extracting: '正在提取主要内容...',
-  analyzing: '正在AI分析摘要...',
-  complete: '分析完成！'
-};
-
-export const UrlInput: React.FC<UrlInputProps> = ({ 
-  onAnalyze, 
+export const UrlInput: React.FC<UrlInputProps> = ({
+  onAnalyze,
   onAnalyzeStream,
-  loadingState, 
-  isStreaming = false,
-  disabled = false 
+  loadingState,
+  isStreaming,
+  disabled = false
 }) => {
-  const [url, setUrl] = useState('');
-  const [urlError, setUrlError] = useState('');
-  const [useStreaming, setUseStreaming] = useState(false);
-  const [streamingText, setStreamingText] = useState('');
+  const [url, setUrl] = useState('')
+  const [streamOutput, setStreamOutput] = useState('')
 
-  const validateUrl = (input: string): boolean => {
+  const isValidUrl = (url: string): boolean => {
     try {
-      new URL(input);
-      return true;
+      new URL(url)
+      return true
     } catch {
-      return false;
+      return false
     }
-  };
+  }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!url.trim()) {
-      setUrlError('请输入网页URL');
-      return;
+  const handleAnalyze = async () => {
+    if (!url.trim() || !isValidUrl(url) || loadingState.isLoading || disabled) {
+      return
     }
-    
-    if (!validateUrl(url)) {
-      setUrlError('请输入有效的URL（例如：https://example.com）');
-      return;
+    await onAnalyze(url)
+  }
+
+  const handleAnalyzeStream = async () => {
+    if (!url.trim() || !isValidUrl(url) || loadingState.isLoading || disabled) {
+      return
     }
-    
-    setUrlError('');
-    setStreamingText('');
 
-    if (useStreaming && onAnalyzeStream) {
-      await onAnalyzeStream(url, (chunk) => {
-        setStreamingText(prev => prev + chunk);
-      });
-    } else {
-      await onAnalyze(url);
+    setStreamOutput('')
+    await onAnalyzeStream(url, (chunk) => {
+      setStreamOutput((prev) => prev + chunk)
+    })
+  }
+
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      handleAnalyze()
     }
-  };
+  }
 
-  const handleExampleClick = (exampleUrl: string) => {
-    setUrl(exampleUrl);
-    setUrlError('');
-  };
-
-  const { isLoading, progress, stage } = loadingState;
+  const getStageText = () => {
+    switch (loadingState.stage) {
+      case 'fetching':
+        return '正在获取网页内容...'
+      case 'extracting':
+        return '正在提取关键信息...'
+      case 'analyzing':
+        return '正在进行AI分析...'
+      case 'complete':
+        return '分析完成'
+      default:
+        return '处理中...'
+    }
+  }
 
   return (
-    <div className="w-full max-w-4xl mx-auto">
-      <form onSubmit={handleSubmit} className="space-y-4">
-        {/* URL输入框 */}
-        <div className="relative">
-          <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-            <Globe className="h-5 w-5 text-gray-400" />
+    <div className="card bg-white shadow-lg">
+      <div className="space-y-4">
+        {/* 标题 */}
+        <div className="text-center">
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">
+            智能网页内容分析
+          </h2>
+          <p className="text-gray-600">
+            输入任意网页URL，获取AI驱动的内容摘要和关键信息提取
+          </p>
+        </div>
+
+        {/* URL输入区域 */}
+        <div className="space-y-4">
+          <div className="relative">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <Link className="h-5 w-5 text-gray-400" />
+            </div>
+            <input
+              type="url"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              onKeyPress={handleKeyPress}
+              placeholder="https://example.com/article"
+              disabled={loadingState.isLoading || disabled}
+              className="block w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100 disabled:cursor-not-allowed text-sm"
+            />
           </div>
-          
-          <input
-            type="url"
-            value={url}
-            onChange={(e) => {
-              setUrl(e.target.value);
-              setUrlError('');
-            }}
-            placeholder="输入要分析的网页URL，例如：https://example.com/article"
-            className={`input pl-12 pr-40 text-lg ${
-              urlError ? 'border-red-500 focus:ring-red-500' : ''
-            }`}
-            disabled={disabled || isLoading}
-          />
-          
-          {/* 流式开关 */}
-          {onAnalyzeStream && (
-            <div className="absolute inset-y-0 right-32 flex items-center pr-2">
-              <label className="flex items-center space-x-2 text-sm text-gray-600">
-                <input
-                  type="checkbox"
-                  checked={useStreaming}
-                  onChange={(e) => setUseStreaming(e.target.checked)}
-                  className="rounded text-primary-600 focus:ring-primary-500"
-                  disabled={isLoading}
-                />
-                <Zap className="w-4 h-4" />
-                <span>流式</span>
-              </label>
+
+          {/* 按钮组 */}
+          <div className="flex flex-col sm:flex-row gap-3">
+            <button
+              onClick={handleAnalyze}
+              disabled={
+                !url.trim() ||
+                !isValidUrl(url) ||
+                loadingState.isLoading ||
+                disabled
+              }
+              className="flex-1 flex items-center justify-center space-x-2 bg-primary-600 text-white py-3 px-6 rounded-lg hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {loadingState.isLoading && !isStreaming ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                <Search className="w-5 h-5" />
+              )}
+              <span>
+                {loadingState.isLoading && !isStreaming
+                  ? '分析中...'
+                  : '开始分析'}
+              </span>
+            </button>
+
+            <button
+              onClick={handleAnalyzeStream}
+              disabled={
+                !url.trim() ||
+                !isValidUrl(url) ||
+                loadingState.isLoading ||
+                disabled
+              }
+              className="flex-1 flex items-center justify-center space-x-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white py-3 px-6 rounded-lg hover:from-purple-700 hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+            >
+              {isStreaming ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                <Zap className="w-5 h-5" />
+              )}
+              <span>{isStreaming ? '流式分析中...' : '流式分析'}</span>
+            </button>
+          </div>
+
+          {/* URL验证提示 */}
+          {url.trim() && !isValidUrl(url) && (
+            <div className="text-sm text-red-600 flex items-center space-x-1">
+              <span>请输入有效的URL格式（例如：https://example.com）</span>
             </div>
           )}
-          
-          <button
-            type="submit"
-            disabled={disabled || isLoading || !url.trim()}
-            className="absolute inset-y-0 right-0 mr-2 px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center space-x-2"
-          >
-            {isLoading ? (
-              <Loader2 className="w-5 h-5 animate-spin" />
-            ) : (
-              <Search className="w-5 h-5" />
-            )}
-            <span className="hidden sm:inline">
-              {isLoading ? '分析中...' : '分析'}
-            </span>
-          </button>
         </div>
 
-        {/* 错误提示 */}
-        {urlError && (
-          <div className="text-red-600 text-sm animate-fade-in">
-            {urlError}
-          </div>
-        )}
-
-        {/* 示例URL */}
-        {!isLoading && (
-          <div className="flex flex-wrap gap-2">
-            <span className="text-sm text-gray-500">试试这些示例：</span>
-            {EXAMPLE_URLS.map((exampleUrl, index) => (
-              <button
-                key={index}
-                type="button"
-                onClick={() => handleExampleClick(exampleUrl)}
-                className="text-sm text-primary-600 hover:text-primary-700 hover:underline transition-colors duration-200"
-              >
-                {exampleUrl.replace('https://', '').split('/')[0]}
-              </button>
-            ))}
-          </div>
-        )}
-      </form>
-
-      {/* 加载状态 */}
-      {isLoading && (
-        <div className="mt-6 card animate-slide-up">
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-gray-700 flex items-center space-x-2">
-                {isStreaming && <Zap className="w-4 h-4 text-primary-600" />}
-                <span>{STAGE_LABELS[stage]}</span>
-              </span>
-              <span className="text-sm text-gray-500">
-                {Math.round(progress)}%
-              </span>
+        {/* 进度条 */}
+        {loadingState.isLoading && (
+          <div className="space-y-2">
+            <div className="flex justify-between text-sm text-gray-600">
+              <span>{getStageText()}</span>
+              <span>{Math.round(loadingState.progress)}%</span>
             </div>
-            
             <div className="w-full bg-gray-200 rounded-full h-2">
-              <div 
+              <div
                 className="bg-gradient-to-r from-primary-500 to-primary-600 h-2 rounded-full transition-all duration-300 ease-out"
-                style={{ width: `${progress}%` }}
+                style={{ width: `${loadingState.progress}%` }}
               />
             </div>
-            
-            <div className="flex items-center space-x-2 text-sm text-gray-600">
-              <Loader2 className="w-4 h-4 animate-spin" />
-              <span>
-                {isStreaming ? '正在实时分析...' : '正在处理您的请求，请稍候...'}
-              </span>
+          </div>
+        )}
+
+        {/* 流式输出显示 */}
+        {isStreaming && streamOutput && (
+          <div className="bg-gray-50 border rounded-lg p-4 max-h-40 overflow-y-auto">
+            <div className="text-sm text-gray-700 whitespace-pre-wrap font-mono">
+              {streamOutput}
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* 流式输出实时显示 */}
-      {isStreaming && streamingText && (
-        <div className="mt-4 card bg-gray-50">
-          <div className="flex items-center space-x-2 mb-3">
-            <Zap className="w-5 h-5 text-primary-600" />
-            <h3 className="font-medium text-gray-800">实时分析结果</h3>
+        {/* 功能特点 */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t border-gray-100">
+          <div className="text-center">
+            <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-2">
+              <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+            </div>
+            <div className="text-xs text-gray-600">智能提取</div>
           </div>
-          <div className="text-gray-700 whitespace-pre-wrap break-words">
-            {streamingText}
-            <span className="inline-block w-2 h-5 bg-primary-600 animate-pulse ml-1"></span>
+          <div className="text-center">
+            <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-2">
+              <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+            </div>
+            <div className="text-xs text-gray-600">关键高亮</div>
+          </div>
+          <div className="text-center">
+            <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-2">
+              <div className="w-3 h-3 bg-purple-500 rounded-full"></div>
+            </div>
+            <div className="text-xs text-gray-600">流式响应</div>
+          </div>
+          <div className="text-center">
+            <div className="w-8 h-8 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-2">
+              <div className="w-3 h-3 bg-orange-500 rounded-full"></div>
+            </div>
+            <div className="text-xs text-gray-600">历史记录</div>
           </div>
         </div>
-      )}
+      </div>
     </div>
-  );
-};
+  )
+}

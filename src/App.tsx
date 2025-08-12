@@ -1,16 +1,18 @@
-import React, { useState } from 'react';
-import { Header } from './components/Header';
-import { UrlInput } from './components/UrlInput';
-import { SummaryCard } from './components/SummaryCard';
-import { HighlightView } from './components/HighlightView';
-import { HistoryPanel } from './components/HistoryPanel';
-import { useSummarizer } from './hooks/useSummarizer';
-import { AlertCircle, Wifi, WifiOff } from 'lucide-react';
+import React, { useState } from 'react'
+import { Header } from './components/Header'
+import { UrlInput } from './components/UrlInput'
+import { SummaryCard } from './components/SummaryCard'
+import { HighlightView } from './components/HighlightView'
+import { HistoryPanel } from './components/HistoryPanel'
+import { useSummarizer } from './hooks/useSummarizer'
+import { AlertCircle, Wifi, WifiOff } from 'lucide-react'
 
 function App() {
-  const [showHistory, setShowHistory] = useState(false);
-  const [apiStatus, setApiStatus] = useState<'online' | 'offline' | 'unknown'>('unknown');
-  
+  const [showHistory, setShowHistory] = useState(false)
+  const [apiStatus, setApiStatus] = useState<'online' | 'offline' | 'unknown'>(
+    'unknown'
+  )
+
   const {
     loadingState,
     currentData,
@@ -22,41 +24,52 @@ function App() {
     loadFromHistory,
     deleteHistoryItem,
     clearAllHistory
-  } = useSummarizer();
+  } = useSummarizer()
 
   // 测试API连接状态
   const checkApiStatus = async () => {
     try {
-      const API_BASE_URL = import.meta.env.VITE_MASTRA_API_URL || 'http://localhost:3000';
-      const response = await fetch(`${API_BASE_URL}/health`, { 
+      const API_BASE_URL =
+        import.meta.env.VITE_MASTRA_API_URL || 'http://localhost:3000'
+
+      // 使用AbortController实现超时
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 5000)
+
+      const response = await fetch(`${API_BASE_URL}/health`, {
         method: 'GET',
-        timeout: 5000 
-      });
-      setApiStatus(response.ok ? 'online' : 'offline');
+        signal: controller.signal
+      })
+
+      clearTimeout(timeoutId)
+      setApiStatus(response.ok ? 'online' : 'offline')
     } catch {
-      setApiStatus('offline');
+      setApiStatus('offline')
     }
-  };
+  }
 
   // 组件挂载时检查API状态
   React.useEffect(() => {
-    checkApiStatus();
-    const interval = setInterval(checkApiStatus, 30000); // 每30秒检查一次
-    return () => clearInterval(interval);
-  }, []);
+    checkApiStatus()
+    const interval = setInterval(checkApiStatus, 30000) // 每30秒检查一次
+    return () => clearInterval(interval)
+  }, [])
 
   const handleAnalyze = async (url: string) => {
-    await analyzePage(url);
-  };
+    await analyzePage(url)
+  }
 
-  const handleAnalyzeStream = async (url: string, onChunk?: (chunk: string) => void) => {
-    await analyzePageStream(url, onChunk);
-  };
+  const handleAnalyzeStream = async (
+    url: string,
+    onChunk?: (chunk: string) => void
+  ) => {
+    await analyzePageStream(url, onChunk)
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
       {/* 头部 */}
-      <Header 
+      <Header
         onShowHistory={() => setShowHistory(true)}
         hasHistory={history.length > 0}
         apiStatus={apiStatus}
@@ -73,7 +86,7 @@ function App() {
             <div className="ml-3">
               <p className="text-sm text-red-700">
                 无法连接到Mastra API服务器。请确保后端服务正在运行。
-                <button 
+                <button
                   onClick={checkApiStatus}
                   className="ml-2 font-medium underline hover:text-red-800"
                 >
@@ -89,7 +102,7 @@ function App() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* URL输入区域 */}
         <div className="mb-8">
-          <UrlInput 
+          <UrlInput
             onAnalyze={handleAnalyze}
             onAnalyzeStream={handleAnalyzeStream}
             loadingState={loadingState}
@@ -104,7 +117,9 @@ function App() {
             <div className="flex items-start space-x-3">
               <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
               <div>
-                <h3 className="text-sm font-medium text-red-800 mb-1">分析失败</h3>
+                <h3 className="text-sm font-medium text-red-800 mb-1">
+                  分析失败
+                </h3>
                 <p className="text-sm text-red-700">{error}</p>
                 <p className="text-xs text-red-600 mt-1">
                   请检查网络连接和URL是否正确，或稍后重试。
@@ -166,15 +181,25 @@ function App() {
                   <span>支持流式分析</span>
                 </div>
               </div>
-              
+
               {/* API状态显示 */}
               <div className="mt-6 flex items-center justify-center space-x-2">
-                <div className={`w-2 h-2 rounded-full ${
-                  apiStatus === 'online' ? 'bg-green-500' : 
-                  apiStatus === 'offline' ? 'bg-red-500' : 'bg-yellow-500'
-                }`}></div>
+                <div
+                  className={`w-2 h-2 rounded-full ${
+                    apiStatus === 'online'
+                      ? 'bg-green-500'
+                      : apiStatus === 'offline'
+                      ? 'bg-red-500'
+                      : 'bg-yellow-500'
+                  }`}
+                ></div>
                 <span className="text-xs text-gray-500">
-                  API状态: {apiStatus === 'online' ? '在线' : apiStatus === 'offline' ? '离线' : '检查中'}
+                  API状态:{' '}
+                  {apiStatus === 'online'
+                    ? '在线'
+                    : apiStatus === 'offline'
+                    ? '离线'
+                    : '检查中'}
                 </span>
               </div>
             </div>
@@ -194,7 +219,7 @@ function App() {
                 基于Mastra + DeepSeek的智能网页内容摘要工具
               </p>
             </div>
-            
+
             <div className="flex items-center space-x-6 text-sm text-gray-500">
               <span>© 2024 Web Summarizer</span>
               <span>•</span>
@@ -216,7 +241,7 @@ function App() {
         onClearAll={clearAllHistory}
       />
     </div>
-  );
+  )
 }
 
-export default App;
+export default App

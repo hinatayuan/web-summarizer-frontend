@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
-import { Search, Zap, Loader2, Link, Eye } from 'lucide-react'
+import { Search, Zap, Loader2, Link, Eye, Bug } from 'lucide-react'
 import { LoadingState } from '../types'
+import { useStreamDebugger } from '../hooks/useStreamDebugger'
 
 interface UrlInputProps {
   onAnalyze: (url: string) => Promise<void>
@@ -24,6 +25,10 @@ export const UrlInput: React.FC<UrlInputProps> = ({
 }) => {
   const [url, setUrl] = useState('')
   const [showStreamPreview, setShowStreamPreview] = useState(false)
+  const [showDebugMode, setShowDebugMode] = useState(false)
+  const [debugReport, setDebugReport] = useState<string>('')
+  
+  const { debugStream, debugInfo, isDebugging, generateDebugReport } = useStreamDebugger()
 
   // 自动显示流式预览
   useEffect(() => {
@@ -35,6 +40,14 @@ export const UrlInput: React.FC<UrlInputProps> = ({
       return () => clearTimeout(timer)
     }
   }, [isStreaming, streamingContent])
+
+  // 生成调试报告
+  useEffect(() => {
+    if (debugInfo && !isDebugging) {
+      const report = generateDebugReport(debugInfo)
+      setDebugReport(report)
+    }
+  }, [debugInfo, isDebugging, generateDebugReport])
 
   const isValidUrl = (url: string): boolean => {
     try {
@@ -50,6 +63,7 @@ export const UrlInput: React.FC<UrlInputProps> = ({
       return
     }
     setShowStreamPreview(false)
+    setDebugReport('')
     await onAnalyze(url)
   }
 
@@ -59,21 +73,45 @@ export const UrlInput: React.FC<UrlInputProps> = ({
     }
 
     setShowStreamPreview(true)
+    setDebugReport('')
     await onAnalyzeStream(url)
+  }
+
+  const handleDebugStream = async () => {
+    if (!url.trim() || !isValidUrl(url) || isDebugging || disabled) {
+      return
+    }
+
+    try {
+      setShowStreamPreview(true)
+      setDebugReport('')
+      const result = await debugStream(url)
+      console.log('📄 调试结果:', result)
+    } catch (error) {
+      console.error('调试失败:', error)
+    }
   }
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       if (e.ctrlKey || e.metaKey) {
-        handleAnalyzeStream()
+        if (e.altKey) {
+          handleDebugStream() // Ctrl+Alt+Enter 调试模式
+        } else {
+          handleAnalyzeStream() // Ctrl+Enter 流式分析
+        }
       } else {
-        handleAnalyze()
+        handleAnalyze() // Enter 普通分析
       }
     }
   }
 
   const getStageText = () => {
+    if (isDebugging) {
+      return '正在调试流式性能...'
+    }
+    
     switch (loadingState.stage) {
       case 'fetching':
         return isStreaming ? '连接流式服务...' : '正在获取网页内容...'
@@ -102,9 +140,23 @@ export const UrlInput: React.FC<UrlInputProps> = ({
       <div className="space-y-4">
         {/* 标题 */}
         <div className="text-center">
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">
-            智能网页内容分析
-          </h2>
+          <div className="flex items-center justify-center space-x-3 mb-2">
+            <h2 className="text-2xl font-bold text-gray-900">
+              智能网页内容分析
+            </h2>
+            {/* 调试模式切换 */}
+            <button
+              onClick={() => setShowDebugMode(!showDebugMode)}
+              className={`p-2 rounded-lg transition-colors ${
+                showDebugMode 
+                  ? 'bg-red-100 text-red-600 hover:bg-red-200'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+              title="切换调试模式"
+            >
+              <Bug className="w-4 h-4" />
+            </button>
+          </div>
           <p className="text-gray-600">
             输入任意网页URL，获取AI驱动的内容摘要和关键信息提取
           </p>
@@ -122,15 +174,23 @@ export const UrlInput: React.FC<UrlInputProps> = ({
               onChange={(e) => setUrl(e.target.value)}
               onKeyPress={handleKeyPress}
               placeholder="https://example.com/article"
-              disabled={loadingState.isLoading || disabled}
+              disabled={loadingState.isLoading || isDebugging || disabled}
               className="block w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100 disabled:cursor-not-allowed text-sm"
             />
           </div>
 
           {/* 快捷键提示 */}
-          {url.trim() && isValidUrl(url) && !loadingState.isLoading && (
+          {url.trim() && isValidUrl(url) && !loadingState.isLoading && !isDebugging && (
             <div className="text-xs text-gray-500 text-center">
-              按 Enter 开始分析 • 按 Ctrl+Enter 流式分析
+              {showDebugMode ? (
+                <span>
+                  按 Enter 标准分析 • 按 Ctrl+Enter 流式分析 • 按 Ctrl+Alt+Enter 调试模式
+                </span>
+              ) : (
+                <span>
+                  按 Enter 开始分析 • 按 Ctrl+Enter 流式分析
+                </span>
+              )}
             </div>
           )}
 
@@ -142,6 +202,7 @@ export const UrlInput: React.FC<UrlInputProps> = ({
                 !url.trim() ||
                 !isValidUrl(url) ||
                 loadingState.isLoading ||
+                isDebugging ||
                 disabled
               }
               className="flex-1 flex items-center justify-center space-x-2 bg-primary-600 text-white py-3 px-6 rounded-lg hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
@@ -164,6 +225,7 @@ export const UrlInput: React.FC<UrlInputProps> = ({
                 !url.trim() ||
                 !isValidUrl(url) ||
                 loadingState.isLoading ||
+                isDebugging ||
                 disabled
               }
               className="flex-1 flex items-center justify-center space-x-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white py-3 px-6 rounded-lg hover:from-purple-700 hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
@@ -175,6 +237,27 @@ export const UrlInput: React.FC<UrlInputProps> = ({
               )}
               <span>{isStreaming ? '流式分析中...' : '流式分析'}</span>
             </button>
+
+            {/* 调试按钮 */}
+            {showDebugMode && (
+              <button
+                onClick={handleDebugStream}
+                disabled={
+                  !url.trim() ||
+                  !isValidUrl(url) ||
+                  isDebugging ||
+                  disabled
+                }
+                className="flex-1 flex items-center justify-center space-x-2 bg-gradient-to-r from-red-600 to-orange-600 text-white py-3 px-6 rounded-lg hover:from-red-700 hover:to-orange-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+              >
+                {isDebugging ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : (
+                  <Bug className="w-5 h-5" />
+                )}
+                <span>{isDebugging ? '调试中...' : '调试模式'}</span>
+              </button>
+            )}
           </div>
 
           {/* URL验证提示 */}
@@ -186,21 +269,46 @@ export const UrlInput: React.FC<UrlInputProps> = ({
         </div>
 
         {/* 进度条 */}
-        {loadingState.isLoading && (
+        {(loadingState.isLoading || isDebugging) && (
           <div className="space-y-2">
             <div className="flex justify-between text-sm text-gray-600">
               <span>{getStageText()}</span>
-              <span>{Math.round(loadingState.progress)}%</span>
+              <span>{isDebugging ? '调试中' : `${Math.round(loadingState.progress)}%`}</span>
             </div>
             <div className="w-full bg-gray-200 rounded-full h-2">
               <div
                 className={`h-2 rounded-full transition-all duration-300 ease-out ${
-                  isStreaming 
+                  isDebugging
+                    ? 'bg-gradient-to-r from-red-500 to-orange-500'
+                    : isStreaming 
                     ? 'bg-gradient-to-r from-purple-500 to-blue-500' 
                     : 'bg-gradient-to-r from-primary-500 to-primary-600'
                 }`}
-                style={{ width: `${loadingState.progress}%` }}
+                style={{ width: isDebugging ? '100%' : `${loadingState.progress}%` }}
               />
+            </div>
+          </div>
+        )}
+
+        {/* 调试报告 */}
+        {showDebugMode && debugReport && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="text-sm font-semibold text-red-800 flex items-center space-x-2">
+                <Bug className="w-4 h-4" />
+                <span>流式性能调试报告</span>
+              </h4>
+              <button
+                onClick={() => navigator.clipboard.writeText(debugReport)}
+                className="text-xs text-red-600 hover:text-red-800"
+              >
+                复制报告
+              </button>
+            </div>
+            <div className="max-h-64 overflow-y-auto">
+              <pre className="text-xs text-red-700 whitespace-pre-wrap">
+                {debugReport}
+              </pre>
             </div>
           </div>
         )}
@@ -214,6 +322,15 @@ export const UrlInput: React.FC<UrlInputProps> = ({
                 <span className="text-sm font-medium text-purple-800">
                   实时分析预览
                 </span>
+                {debugInfo && (
+                  <span className={`text-xs px-2 py-1 rounded ${
+                    debugInfo.isRealStream 
+                      ? 'bg-green-100 text-green-800'
+                      : 'bg-red-100 text-red-800'
+                  }`}>
+                    {debugInfo.isRealStream ? '真流式' : '伪流式'}
+                  </span>
+                )}
               </div>
               <button
                 onClick={() => setShowStreamPreview(false)}
@@ -235,14 +352,16 @@ export const UrlInput: React.FC<UrlInputProps> = ({
             </div>
             
             {/* 流式进度指示器 */}
-            {isStreaming && (
+            {(isStreaming || isDebugging) && (
               <div className="mt-3 flex items-center space-x-2 text-xs text-purple-600">
                 <div className="flex space-x-1">
                   <div className="w-2 h-2 bg-purple-400 rounded-full animate-pulse"></div>
                   <div className="w-2 h-2 bg-purple-400 rounded-full animate-pulse" style={{animationDelay: '0.2s'}}></div>
                   <div className="w-2 h-2 bg-purple-400 rounded-full animate-pulse" style={{animationDelay: '0.4s'}}></div>
                 </div>
-                <span>正在实时生成内容...</span>
+                <span>
+                  {isDebugging ? '正在调试流式性能...' : '正在实时生成内容...'}
+                </span>
               </div>
             )}
           </div>

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Zap, Eye, EyeOff, Copy, Check, Maximize2, Minimize2 } from 'lucide-react';
+import { StreamMarkdownRenderer } from './MarkdownRenderer';
 
 interface StreamingDisplayProps {
   content: string;
@@ -36,23 +37,20 @@ export const StreamingDisplay: React.FC<StreamingDisplayProps> = ({
       setTimeout(() => setCopied(false), 2000);
     } catch (error) {
       console.error('复制失败:', error);
+      // 降级方案
+      const textArea = document.createElement('textarea');
+      textArea.value = content;
+      document.body.appendChild(textArea);
+      textArea.select();
+      try {
+        document.execCommand('copy');
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      } catch (fallbackError) {
+        console.error('降级复制也失败:', fallbackError);
+      }
+      document.body.removeChild(textArea);
     }
-  };
-
-  // 格式化显示内容
-  const formatContent = (text: string) => {
-    if (!text) return '';
-    
-    // 基本的Markdown格式处理
-    return text
-      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-      .replace(/\*(.*?)\*/g, '<em>$1</em>')
-      .replace(/^### (.*$)/gm, '<h3 class="text-lg font-semibold text-gray-800 mt-4 mb-2">$1</h3>')
-      .replace(/^## (.*$)/gm, '<h2 class="text-xl font-semibold text-gray-800 mt-4 mb-2">$1</h2>')
-      .replace(/^# (.*$)/gm, '<h1 class="text-2xl font-bold text-gray-900 mt-4 mb-3">$1</h1>')
-      .replace(/\n\n/g, '</p><p class="mb-3">')
-      .replace(/^\- (.*)$/gm, '<li class="ml-4">• $1</li>')
-      .replace(/^\d+\. (.*)$/gm, '<li class="ml-4 list-decimal">$1</li>');
   };
 
   if (!content && !isStreaming) {
@@ -152,12 +150,17 @@ export const StreamingDisplay: React.FC<StreamingDisplayProps> = ({
         }}
       >
         {content ? (
-          <div 
-            className="text-sm text-gray-700 leading-relaxed prose prose-sm max-w-none"
-            dangerouslySetInnerHTML={{ 
-              __html: `<p class="mb-3">${formatContent(content)}</p>` 
-            }}
-          />
+          <div className="relative">
+            <StreamMarkdownRenderer 
+              content={content}
+              className="text-gray-700"
+            />
+            
+            {/* 输入光标效果 */}
+            {isStreaming && (
+              <span className="inline-block w-2 h-5 bg-purple-500 animate-pulse ml-1 align-text-bottom"></span>
+            )}
+          </div>
         ) : (
           <div className="flex items-center justify-center h-20 text-gray-500">
             <div className="flex items-center space-x-2">
@@ -165,11 +168,6 @@ export const StreamingDisplay: React.FC<StreamingDisplayProps> = ({
               <span>等待流式内容...</span>
             </div>
           </div>
-        )}
-
-        {/* 输入光标效果 */}
-        {isStreaming && (
-          <span className="inline-block w-2 h-5 bg-purple-500 animate-pulse ml-1 align-text-bottom"></span>
         )}
       </div>
 

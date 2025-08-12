@@ -110,7 +110,18 @@ export const useSummarizer = () => {
           }
         } else if (result && typeof result === 'object') {
           // 如果返回的是对象，直接使用并确保包含sourceUrl
-          summaryData = { ...result, sourceUrl: url } as SummaryData
+          // 创建基础结构，然后合并result的属性
+          summaryData = {
+            title: '网页分析结果',
+            summary: '无法获取摘要',
+            keyPoints: [],
+            keywords: [],
+            highlights: [],
+            readingTime: '未知',
+            sourceUrl: url,
+            createdAt: new Date().toISOString(),
+            ...result
+          } as SummaryData
         } else {
           throw new Error('API返回格式不正确')
         }
@@ -197,7 +208,7 @@ export const useSummarizer = () => {
         )
 
         // 尝试使用流式API
-        const stream = await client.getAgent(AGENT_ID).stream({
+        const streamResponse = await client.getAgent(AGENT_ID).stream({
           messages: [
             {
               role: 'user',
@@ -209,10 +220,44 @@ export const useSummarizer = () => {
         let fullResponse = ''
 
         // 处理流式响应
-        for await (const chunk of stream) {
-          if (chunk) {
-            fullResponse += chunk
-            onChunk?.(chunk)
+        // 检查是否是异步可迭代对象
+        if (
+          streamResponse &&
+          typeof (streamResponse as any)[Symbol.asyncIterator] === 'function'
+        ) {
+          try {
+            for await (const chunk of streamResponse as any) {
+              if (chunk) {
+                fullResponse += chunk
+                onChunk?.(chunk)
+              }
+            }
+          } catch (iteratorError) {
+            console.warn('异步迭代器处理失败，尝试其他方式:', iteratorError)
+            // 回退到其他处理方式
+            if (typeof streamResponse === 'string') {
+              fullResponse = streamResponse
+            } else if (streamResponse && typeof streamResponse === 'object') {
+              fullResponse = JSON.stringify(streamResponse)
+            }
+          }
+        } else if (
+          streamResponse &&
+          typeof (streamResponse as any).processDataStream === 'function'
+        ) {
+          // 如果是 Mastra 特定的流响应格式
+          await (streamResponse as any).processDataStream({
+            onTextPart: (chunk: string) => {
+              fullResponse += chunk
+              onChunk?.(chunk)
+            }
+          })
+        } else {
+          // 如果不支持流式，直接使用响应内容
+          if (typeof streamResponse === 'string') {
+            fullResponse = streamResponse
+          } else if (streamResponse && typeof streamResponse === 'object') {
+            fullResponse = JSON.stringify(streamResponse)
           }
         }
 

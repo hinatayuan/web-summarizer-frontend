@@ -4,11 +4,13 @@ import { UrlInput } from './components/UrlInput'
 import { SummaryCard } from './components/SummaryCard'
 import { HighlightView } from './components/HighlightView'
 import { HistoryPanel } from './components/HistoryPanel'
+import { StreamingDisplay } from './components/StreamingDisplay'
 import { useSummarizer } from './hooks/useSummarizer'
 import { AlertCircle, Wifi, WifiOff } from 'lucide-react'
 
 function App() {
   const [showHistory, setShowHistory] = useState(false)
+  const [showStreamingDisplay, setShowStreamingDisplay] = useState(false)
   const [apiStatus, setApiStatus] = useState<'online' | 'offline' | 'unknown'>(
     'unknown'
   )
@@ -19,6 +21,7 @@ function App() {
     error,
     history,
     isStreaming,
+    streamingContent,
     analyzePage,
     analyzePageStream,
     loadFromHistory,
@@ -55,7 +58,19 @@ function App() {
     return () => clearInterval(interval)
   }, [])
 
+  // 自动显示/隐藏 StreamingDisplay
+  React.useEffect(() => {
+    if (isStreaming && streamingContent) {
+      setShowStreamingDisplay(true)
+    } else if (!isStreaming && streamingContent) {
+      // 流式结束后保持显示一段时间
+      const timer = setTimeout(() => setShowStreamingDisplay(false), 5000)
+      return () => clearTimeout(timer)
+    }
+  }, [isStreaming, streamingContent])
+
   const handleAnalyze = async (url: string) => {
+    setShowStreamingDisplay(false)
     await analyzePage(url)
   }
 
@@ -63,6 +78,7 @@ function App() {
     url: string,
     onChunk?: (chunk: string) => void
   ) => {
+    setShowStreamingDisplay(true)
     await analyzePageStream(url, onChunk)
   }
 
@@ -107,9 +123,22 @@ function App() {
             onAnalyzeStream={handleAnalyzeStream}
             loadingState={loadingState}
             isStreaming={isStreaming}
+            streamingContent={streamingContent}
             disabled={loadingState.isLoading || apiStatus === 'offline'}
           />
         </div>
+
+        {/* 流式分析显示 */}
+        {showStreamingDisplay && (streamingContent || isStreaming) && (
+          <div className="mb-8">
+            <StreamingDisplay
+              content={streamingContent}
+              isStreaming={isStreaming}
+              onClose={() => setShowStreamingDisplay(false)}
+              title="实时流式分析"
+            />
+          </div>
+        )}
 
         {/* 错误提示 */}
         {error && (

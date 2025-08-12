@@ -300,29 +300,87 @@ export const useSummarizer = () => {
         let fullResponse = ''
         let chunkCount = 0
 
-        // 处理流式响应
-        if (streamResponse && typeof streamResponse[Symbol.asyncIterator] === 'function') {
-          for await (const chunk of streamResponse) {
-            if (chunk && typeof chunk === 'string') {
-              fullResponse += chunk
-              chunkCount++
-              
-              // 更新流式内容显示
-              setStreamingContent(fullResponse)
-              
-              // 调用回调函数
+        // 处理流式响应 - 修复TypeScript错误
+        if (streamResponse && typeof streamResponse === 'object') {
+          // 检查是否有processDataStream方法（Mastra特定）
+          if ('processDataStream' in streamResponse && typeof streamResponse.processDataStream === 'function') {
+            try {
+              await streamResponse.processDataStream({
+                onTextPart: (chunk: string) => {
+                  fullResponse += chunk
+                  chunkCount++
+                  
+                  // 更新流式内容显示
+                  setStreamingContent(fullResponse)
+                  
+                  // 调用回调函数
+                  onChunk?.(chunk)
+                  
+                  // 更新进度
+                  const progress = Math.min(10 + (chunkCount * 2), 90)
+                  setLoadingState(prev => ({ ...prev, progress }))
+                }
+              })
+            } catch (streamError) {
+              console.warn('流式处理错误:', streamError)
+              // 如果流式处理失败，尝试获取完整响应
+              if (typeof streamResponse === 'string') {
+                fullResponse = streamResponse
+              } else if (streamResponse && typeof streamResponse === 'object') {
+                fullResponse = JSON.stringify(streamResponse)
+              }
+            }
+          } 
+          // 检查是否是标准的异步可迭代对象
+          else if (Symbol.asyncIterator in streamResponse) {
+            try {
+              for await (const chunk of streamResponse as AsyncIterable<string>) {
+                if (chunk && typeof chunk === 'string') {
+                  fullResponse += chunk
+                  chunkCount++
+                  
+                  // 更新流式内容显示
+                  setStreamingContent(fullResponse)
+                  
+                  // 调用回调函数
+                  onChunk?.(chunk)
+                  
+                  // 更新进度
+                  const progress = Math.min(10 + (chunkCount * 2), 90)
+                  setLoadingState(prev => ({ ...prev, progress }))
+                  
+                  // 添加小延迟以显示流式效果
+                  await new Promise(resolve => setTimeout(resolve, 50))
+                }
+              }
+            } catch (iteratorError) {
+              console.warn('异步迭代器处理失败:', iteratorError)
+              // 回退处理
+              if (typeof streamResponse === 'string') {
+                fullResponse = streamResponse
+              } else {
+                fullResponse = JSON.stringify(streamResponse)
+              }
+            }
+          }
+          // 如果都不支持，直接使用响应内容
+          else {
+            if (typeof streamResponse === 'string') {
+              fullResponse = streamResponse
+            } else {
+              fullResponse = JSON.stringify(streamResponse)
+            }
+            
+            // 模拟流式效果
+            const chunks = fullResponse.match(/.{1,50}/g) || [fullResponse]
+            for (const chunk of chunks) {
+              setStreamingContent(prev => prev + chunk)
               onChunk?.(chunk)
-              
-              // 更新进度
-              const progress = Math.min(10 + (chunkCount * 2), 90)
-              setLoadingState(prev => ({ ...prev, progress }))
-              
-              // 添加小延迟以显示流式效果
-              await new Promise(resolve => setTimeout(resolve, 50))
+              await new Promise(resolve => setTimeout(resolve, 100))
             }
           }
         } else {
-          // 如果不支持流式，回退到普通处理
+          // 如果不支持流式，回退到普通分析
           console.warn('流式API不可用，回退到普通分析')
           setIsStreaming(false)
           return await analyzePage(url)

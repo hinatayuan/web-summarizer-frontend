@@ -34,8 +34,8 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
       // 无序列表
       .replace(/^[\s]*[-*+] (.*)$/gm, '<li class="flex items-start mb-2"><span class="text-blue-500 mr-2 mt-1">•</span><span class="flex-1">$1</span></li>')
       
-      // 有序列表
-      .replace(/^[\s]*\d+\. (.*)$/gm, (match, p1, offset, string) => {
+      // 有序列表 - 修复 TypeScript 错误
+      .replace(/^[\s]*\d+\. (.*)$/gm, (fullMatch, p1, offset, string) => {
         const lines = string.substring(0, offset).split('\n');
         const currentLineIndex = lines.length - 1;
         let number = 1;

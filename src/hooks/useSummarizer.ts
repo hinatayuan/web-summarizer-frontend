@@ -4,6 +4,7 @@ import { SummaryData, LoadingState, AnalysisHistory } from '../types';
 import { storage } from '../utils/storage';
 
 const API_BASE_URL = import.meta.env.VITE_MASTRA_API_URL || 'http://localhost:3000';
+const AGENT_ID = import.meta.env.VITE_AGENT_ID || 'htmlSummarizer';
 
 export const useSummarizer = () => {
   const [loadingState, setLoadingState] = useState<LoadingState>({
@@ -62,13 +63,13 @@ export const useSummarizer = () => {
       setLoadingState(prev => ({ ...prev, stage: 'analyzing' }));
 
       // 调用MastraClient的Agent
-      console.log('正在调用Mastra Agent，URL:', API_BASE_URL);
+      console.log('正在调用Mastra Agent，URL:', API_BASE_URL, 'Agent ID:', AGENT_ID);
       
-      const result = await client.getAgent('summarizerAgent').generate({
+      const result = await client.getAgent(AGENT_ID).generate({
         messages: [
           {
             role: 'user',
-            content: `请分析这个网页：${url}`
+            content: `请分析这个网页并返回JSON格式的摘要：${url}`
           }
         ]
       });
@@ -82,7 +83,8 @@ export const useSummarizer = () => {
         try {
           // 尝试解析JSON字符串
           summaryData = JSON.parse(result);
-        } catch {
+        } catch (parseError) {
+          console.error('JSON解析失败:', parseError);
           // 如果解析失败，创建基本结构
           summaryData = {
             title: '网页分析结果',
@@ -90,12 +92,13 @@ export const useSummarizer = () => {
             keyPoints: [],
             keywords: [],
             highlights: [],
-            readingTime: '未知'
+            readingTime: '未知',
+            sourceUrl: url
           };
         }
       } else if (result && typeof result === 'object') {
-        // 如果返回的是对象，直接使用
-        summaryData = result as SummaryData;
+        // 如果返回的是对象，直接使用并确保包含sourceUrl
+        summaryData = { ...result, sourceUrl: url } as SummaryData;
       } else {
         throw new Error('API返回格式不正确');
       }
@@ -107,6 +110,15 @@ export const useSummarizer = () => {
       if (!Array.isArray(summaryData.keywords)) summaryData.keywords = [];
       if (!Array.isArray(summaryData.highlights)) summaryData.highlights = [];
       if (!summaryData.readingTime) summaryData.readingTime = '未知';
+      if (!summaryData.sourceUrl) summaryData.sourceUrl = url;
+      if (!summaryData.createdAt) summaryData.createdAt = new Date().toISOString();
+
+      // 为highlights添加ID（如果没有的话）
+      summaryData.highlights = summaryData.highlights.map((highlight, index) => ({
+        ...highlight,
+        id: highlight.id || `highlight-${index}`,
+        type: highlight.type || 'important'
+      }));
 
       // 保存到历史记录
       const historyItem: AnalysisHistory = {
@@ -126,7 +138,18 @@ export const useSummarizer = () => {
 
     } catch (err) {
       console.error('分析失败:', err);
-      const errorMessage = err instanceof Error ? err.message : '分析失败，请稍后重试';
+      let errorMessage = '分析失败，请稍后重试';
+      
+      if (err instanceof Error) {
+        if (err.message.includes('fetch')) {
+          errorMessage = '无法连接到服务器，请检查网络连接';
+        } else if (err.message.includes('timeout')) {
+          errorMessage = '请求超时，请稍后重试';
+        } else {
+          errorMessage = err.message;
+        }
+      }
+      
       setError(errorMessage);
       return null;
     } finally {
@@ -146,14 +169,14 @@ export const useSummarizer = () => {
       setIsStreaming(true);
       setLoadingState({ isLoading: true, progress: 0, stage: 'fetching' });
 
-      console.log('正在进行流式分析，URL:', API_BASE_URL);
+      console.log('正在进行流式分析，URL:', API_BASE_URL, 'Agent ID:', AGENT_ID);
 
       // 尝试使用流式API
-      const stream = await client.getAgent('summarizerAgent').stream({
+      const stream = await client.getAgent(AGENT_ID).stream({
         messages: [
           {
             role: 'user',
-            content: `请分析这个网页：${url}`
+            content: `请分析这个网页并以流式方式返回摘要：${url}`
           }
         ]
       });
@@ -179,9 +202,15 @@ export const useSummarizer = () => {
           keyPoints: [],
           keywords: [],
           highlights: [],
-          readingTime: '未知'
+          readingTime: '未知',
+          sourceUrl: url,
+          createdAt: new Date().toISOString()
         };
       }
+
+      // 确保数据完整性
+      if (!summaryData.sourceUrl) summaryData.sourceUrl = url;
+      if (!summaryData.createdAt) summaryData.createdAt = new Date().toISOString();
 
       setCurrentData(summaryData);
       return summaryData;

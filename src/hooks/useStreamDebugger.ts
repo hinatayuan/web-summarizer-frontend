@@ -84,6 +84,7 @@ export const useStreamDebugger = () => {
       if (streamResponse && 'processDataStream' in streamResponse && typeof streamResponse.processDataStream === 'function') {
         console.log('🔄 使用 Mastra processDataStream 方法')
         
+        // 修复 TypeScript 错误 - 移除不支持的 onError 属性
         await streamResponse.processDataStream({
           onTextPart: (chunk: string) => {
             const now = Date.now()
@@ -106,13 +107,8 @@ export const useStreamDebugger = () => {
             
             totalContent += chunk
             lastChunkTime = now
-          },
-          onError: (error: any) => {
-            console.error('❌ 流式处理错误:', error)
-          },
-          onComplete: () => {
-            console.log('✅ 流式处理完成')
           }
+          // 移除不支持的属性
         })
       }
       // 方法2：尝试标准异步迭代器

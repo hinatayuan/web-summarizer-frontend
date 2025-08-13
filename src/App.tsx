@@ -6,12 +6,17 @@ import { HighlightView } from './components/HighlightView'
 import { HistoryPanel } from './components/HistoryPanel'
 import { StreamingDisplay } from './components/StreamingDisplay'
 import { ContentStatsCard } from './components/ContentStatsCard'
+import { ModeSelector } from './components/ModeSelector'
+import { ContentTypeSelector } from './components/ContentTypeSelector'
+import { MetadataCard } from './components/MetadataCard'
 import { useSummarizer } from './hooks/useSummarizer'
 import { AlertCircle, Wifi, WifiOff } from 'lucide-react'
 
 function App() {
   const [showHistory, setShowHistory] = useState(false)
   const [showStreamingDisplay, setShowStreamingDisplay] = useState(false)
+  const [selectedMode, setSelectedMode] = useState('standard')
+  const [selectedContentType, setSelectedContentType] = useState('url')
   const [apiStatus, setApiStatus] = useState<'online' | 'offline' | 'unknown'>(
     'unknown'
   )
@@ -71,17 +76,21 @@ function App() {
     }
   }, [isStreaming, streamingContent])
 
-  const handleAnalyze = async (url: string) => {
+  const handleAnalyze = async (url: string, mode?: string, contentType?: string) => {
     setShowStreamingDisplay(false)
-    await analyzePage(url)
+    // 将模式和内容类型参数传递给分析函数
+    await analyzePage(url, { mode, contentType })
   }
 
   const handleAnalyzeStream = async (
     url: string,
-    onChunk?: (chunk: string) => void
+    onChunk?: (chunk: string) => void,
+    mode?: string,
+    contentType?: string
   ) => {
     setShowStreamingDisplay(true)
-    await analyzePageStream(url, onChunk)
+    // 将模式和内容类型参数传递给流式分析函数
+    await analyzePageStream(url, onChunk, { mode, contentType })
   }
 
   return (
@@ -118,8 +127,21 @@ function App() {
 
       {/* 主体内容 */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* URL输入区域 */}
-        <div className="mb-8">
+        {/* 输入和配置区域 */}
+        <div className="mb-8 space-y-6">
+          {/* 摘要模式选择 */}
+          <ModeSelector
+            selectedMode={selectedMode}
+            onModeChange={setSelectedMode}
+          />
+          
+          {/* 内容类型选择 */}
+          <ContentTypeSelector
+            selectedType={selectedContentType}
+            onTypeChange={setSelectedContentType}
+          />
+          
+          {/* URL输入区域 */}
           <UrlInput
             onAnalyze={handleAnalyze}
             onAnalyzeStream={handleAnalyzeStream}
@@ -127,6 +149,8 @@ function App() {
             isStreaming={isStreaming}
             streamingContent={streamingContent}
             disabled={loadingState.isLoading || apiStatus === 'offline'}
+            selectedMode={selectedMode}
+            selectedContentType={selectedContentType}
           />
         </div>
 
@@ -163,18 +187,40 @@ function App() {
         {/* 结果展示区域 */}
         {currentData && (
           <div className="space-y-8">
-            {/* 内容统计卡片 - 全宽显示 */}
-            <ContentStatsCard
-              contentStats={currentData.contentStats}
-              highlights={currentData.highlights}
-              title={currentData.title}
-              summary={currentData.summary}
-            />
+            {/* 处理信息和内容统计 */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* 元数据卡片 */}
+              {currentData.metadata && (
+                <MetadataCard metadata={currentData.metadata} />
+              )}
+              
+              {/* 内容统计卡片 */}
+              <ContentStatsCard
+                contentStats={currentData.contentStats}
+                highlights={currentData.highlights}
+                title={currentData.title}
+                summary={currentData.summary}
+              />
+            </div>
             
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               {/* 左侧：摘要卡片 */}
               <div className="space-y-6">
                 <SummaryCard data={currentData} />
+                
+                {/* 相关内容显示 */}
+                {currentData.relatedContent && currentData.relatedContent.length > 0 && (
+                  <div className="bg-blue-50 rounded-lg p-4">
+                    <h3 className="text-sm font-medium text-blue-900 mb-3">相关内容</h3>
+                    <div className="space-y-2">
+                      {currentData.relatedContent.map((content, index) => (
+                        <div key={index} className="text-sm text-blue-700 p-2 bg-blue-100 rounded">
+                          {content}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* 右侧：高亮显示 */}

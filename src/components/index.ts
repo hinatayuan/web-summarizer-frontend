@@ -7,3 +7,8 @@ export { HistoryPanel } from './HistoryPanel';
 export { StreamingDisplay } from './StreamingDisplay';
 export { MarkdownRenderer } from './MarkdownRenderer';
 export { ContentStatsCard } from './ContentStatsCard';
+export { ModeSelector } from './ModeSelector';
+export { ContentTypeSelector } from './ContentTypeSelector';
+export { MetadataCard } from './MetadataCard';
+export { QuickActions } from './QuickActions';
+export { FileUpload } from './FileUpload';

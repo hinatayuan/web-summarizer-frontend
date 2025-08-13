@@ -2,6 +2,7 @@ import React from 'react';
 import { FileText, Clock, Key, Target, ExternalLink, Copy, Check, AlertTriangle } from 'lucide-react';
 import { SummaryData } from '../types';
 import { MarkdownRenderer } from './MarkdownRenderer';
+import { QuickActions } from './QuickActions';
 import { useState } from 'react';
 
 interface SummaryCardProps {
@@ -132,6 +133,12 @@ export const SummaryCard: React.FC<SummaryCardProps> = ({ data }) => {
               <span>{new Date(data.createdAt).toLocaleDateString('zh-CN')}</span>
             )}
           </div>
+        </div>
+        
+        {/* 快捷操作 */}
+        <div className="mt-4 pt-4 border-t border-gray-200">
+          <h3 className="text-sm font-medium text-gray-700 mb-3">快捷操作</h3>
+          <QuickActions data={data} />
         </div>
       </div>
 

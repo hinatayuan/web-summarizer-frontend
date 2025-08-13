@@ -8,6 +8,9 @@ export interface SummaryData {
   sourceUrl?: string;
   createdAt?: string;
   contentStats?: ContentStats;
+  metadata?: SummaryMetadata;
+  relatedContent?: string[];
+  translations?: Record<string, any>;
 }
 
 export interface HighlightItem {
@@ -26,6 +29,32 @@ export interface ContentStats {
   totalWords: number;
   highlightCount: number;
   importantHighlights: number;
+}
+
+// 新增：摘要元数据类型
+export interface SummaryMetadata {
+  mode: 'standard' | 'detailed' | 'concise' | 'technical' | 'multilingual' | 'rag';
+  language: string;
+  contentType: 'article' | 'pdf' | 'rss' | 'webpage' | 'technical';
+  processingTime: number;
+  cached: boolean;
+  ragEnhanced: boolean;
+  similarity: number;
+}
+
+// 新增：摘要模式选择
+export interface SummaryMode {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+}
+
+// 新增：内容类型
+export interface ContentType {
+  type: 'url' | 'pdf' | 'rss' | 'text';
+  label: string;
+  icon: string;
 }
 
 export interface LoadingState {

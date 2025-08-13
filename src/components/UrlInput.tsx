@@ -2,17 +2,23 @@ import React, { useState, useEffect } from 'react'
 import { Search, Zap, Loader2, Link, Eye, Bug } from 'lucide-react'
 import { LoadingState } from '../types'
 import { useStreamDebugger } from '../hooks/useStreamDebugger'
+import { FileUpload } from './FileUpload'
+import { uploadFileToTempStorage, cleanupTempUrl } from '../utils/fileUpload'
 
 interface UrlInputProps {
-  onAnalyze: (url: string) => Promise<void>
+  onAnalyze: (url: string, mode?: string, contentType?: string) => Promise<void>
   onAnalyzeStream: (
     url: string,
-    onChunk?: (chunk: string) => void
+    onChunk?: (chunk: string) => void,
+    mode?: string,
+    contentType?: string
   ) => Promise<void>
   loadingState: LoadingState
   isStreaming: boolean
   streamingContent?: string
   disabled?: boolean
+  selectedMode?: string
+  selectedContentType?: string
 }
 
 export const UrlInput: React.FC<UrlInputProps> = ({
@@ -21,12 +27,16 @@ export const UrlInput: React.FC<UrlInputProps> = ({
   loadingState,
   isStreaming,
   streamingContent = '',
-  disabled = false
+  disabled = false,
+  selectedMode = 'standard',
+  selectedContentType = 'url'
 }) => {
   const [url, setUrl] = useState('')
   const [showStreamPreview, setShowStreamPreview] = useState(false)
   const [showDebugMode, setShowDebugMode] = useState(false)
   const [debugReport, setDebugReport] = useState<string>('')
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [fileUrl, setFileUrl] = useState<string>('')
   
   const { debugStream, debugInfo, isDebugging, generateDebugReport } = useStreamDebugger()
 
@@ -49,6 +59,53 @@ export const UrlInput: React.FC<UrlInputProps> = ({
     }
   }, [debugInfo, isDebugging, generateDebugReport])
 
+  // 处理文件选择
+  const handleFileSelect = async (file: File | null, objectUrl?: string) => {
+    if (file) {
+      setSelectedFile(file)
+      
+      try {
+        // 上传文件到临时存储
+        const uploadResult = await uploadFileToTempStorage(file);
+        
+        if (uploadResult.success && uploadResult.url) {
+          setFileUrl(uploadResult.url)
+          
+          // 如果是base64 URL，直接传递给后端
+          // 如果是http URL，后端可以直接访问
+          setUrl(uploadResult.url)
+        } else {
+          console.error('File upload failed:', uploadResult.error)
+          // 降级使用对象URL
+          if (objectUrl) {
+            setFileUrl(objectUrl)
+            setUrl(objectUrl)
+          }
+        }
+      } catch (error) {
+        console.error('File processing error:', error)
+        // 降级使用对象URL
+        if (objectUrl) {
+          setFileUrl(objectUrl)
+          setUrl(objectUrl)
+        }
+      }
+    } else {
+      // 清理之前的文件URL
+      if (fileUrl) {
+        cleanupTempUrl(fileUrl)
+      }
+      setSelectedFile(null)
+      setFileUrl('')
+      setUrl('')
+    }
+  }
+
+  // 根据内容类型决定显示哪种输入方式
+  const showFileUpload = selectedContentType === 'pdf'
+  const showUrlInput = selectedContentType === 'url' || selectedContentType === 'rss'
+  const showTextInput = selectedContentType === 'text'
+
   const isValidUrl = (url: string): boolean => {
     try {
       new URL(url)
@@ -58,27 +115,39 @@ export const UrlInput: React.FC<UrlInputProps> = ({
     }
   }
 
+  // 检查输入是否有效
+  const isInputValid = (): boolean => {
+    if (showUrlInput || selectedContentType === 'rss') {
+      return Boolean(url.trim() && isValidUrl(url))
+    } else if (showTextInput) {
+      return url.trim().length > 0
+    } else if (showFileUpload) {
+      return selectedFile !== null
+    }
+    return false
+  }
+
   const handleAnalyze = async () => {
-    if (!url.trim() || !isValidUrl(url) || loadingState.isLoading || disabled) {
+    if (!isInputValid() || loadingState.isLoading || disabled) {
       return
     }
     setShowStreamPreview(false)
     setDebugReport('')
-    await onAnalyze(url)
+    await onAnalyze(url, selectedMode, selectedContentType)
   }
 
   const handleAnalyzeStream = async () => {
-    if (!url.trim() || !isValidUrl(url) || loadingState.isLoading || disabled) {
+    if (!isInputValid() || loadingState.isLoading || disabled) {
       return
     }
 
     setShowStreamPreview(true)
     setDebugReport('')
-    await onAnalyzeStream(url)
+    await onAnalyzeStream(url, undefined, selectedMode, selectedContentType)
   }
 
   const handleDebugStream = async () => {
-    if (!url.trim() || !isValidUrl(url) || isDebugging || disabled) {
+    if (!isInputValid() || isDebugging || disabled) {
       return
     }
 
@@ -162,25 +231,65 @@ export const UrlInput: React.FC<UrlInputProps> = ({
           </p>
         </div>
 
-        {/* URL输入区域 */}
+        {/* 内容输入区域 */}
         <div className="space-y-4">
-          <div className="relative">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <Link className="h-5 w-5 text-gray-400" />
-            </div>
-            <input
-              type="url"
+          {/* URL输入 */}
+          {showUrlInput && (
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <Link className="h-5 w-5 text-gray-400" />
+              </div>
+              <input
+                type="url"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
               onKeyPress={handleKeyPress}
               placeholder="https://example.com/article"
               disabled={loadingState.isLoading || isDebugging || disabled}
-              className="block w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100 disabled:cursor-not-allowed text-sm"
+                className="block w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100 disabled:cursor-not-allowed text-sm"
+              />
+            </div>
+          )}
+
+          {/* PDF文件上传 */}
+          {showFileUpload && (
+            <FileUpload
+              onFileSelect={handleFileSelect}
+              acceptedTypes=".pdf"
+              maxSize={10}
+              disabled={loadingState.isLoading || isDebugging || disabled}
             />
-          </div>
+          )}
+
+          {/* 文本输入 */}
+          {showTextInput && (
+            <div className="relative">
+              <textarea
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+                onKeyPress={(e) => {
+                  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                    e.preventDefault()
+                    if (e.altKey) {
+                      handleDebugStream()
+                    } else {
+                      handleAnalyzeStream()
+                    }
+                  }
+                }}
+                placeholder="在此输入要分析的文本内容..."
+                disabled={loadingState.isLoading || isDebugging || disabled}
+                className="block w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100 disabled:cursor-not-allowed text-sm resize-none"
+                rows={6}
+              />
+              <div className="absolute bottom-2 right-2 text-xs text-gray-400">
+                Ctrl+Enter 发送
+              </div>
+            </div>
+          )}
 
           {/* 快捷键提示 */}
-          {url.trim() && isValidUrl(url) && !loadingState.isLoading && !isDebugging && (
+          {isInputValid() && !loadingState.isLoading && !isDebugging && (
             <div className="text-xs text-gray-500 text-center">
               {showDebugMode ? (
                 <span>
@@ -199,8 +308,7 @@ export const UrlInput: React.FC<UrlInputProps> = ({
             <button
               onClick={handleAnalyze}
               disabled={
-                !url.trim() ||
-                !isValidUrl(url) ||
+                !isInputValid() ||
                 loadingState.isLoading ||
                 isDebugging ||
                 disabled
@@ -222,8 +330,7 @@ export const UrlInput: React.FC<UrlInputProps> = ({
             <button
               onClick={handleAnalyzeStream}
               disabled={
-                !url.trim() ||
-                !isValidUrl(url) ||
+                !isInputValid() ||
                 loadingState.isLoading ||
                 isDebugging ||
                 disabled
@@ -243,8 +350,7 @@ export const UrlInput: React.FC<UrlInputProps> = ({
               <button
                 onClick={handleDebugStream}
                 disabled={
-                  !url.trim() ||
-                  !isValidUrl(url) ||
+                  !isInputValid() ||
                   isDebugging ||
                   disabled
                 }

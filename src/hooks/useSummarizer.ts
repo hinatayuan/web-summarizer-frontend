@@ -266,7 +266,7 @@ export const useSummarizer = () => {
 
   // 普通分析
   const analyzePage = useCallback(
-    async (url: string): Promise<SummaryData | null> => {
+    async (url: string, options?: { mode?: string; contentType?: string }): Promise<SummaryData | null> => {
       if (!url.trim()) {
         setError('请输入有效的URL')
         return null
@@ -287,22 +287,37 @@ export const useSummarizer = () => {
 
         console.log('正在调用Mastra Agent，URL:', API_BASE_URL, 'Agent ID:', AGENT_ID)
 
+        // 构建请求消息
+        const modeInstruction = options?.mode ? `请使用${options.mode}模式进行分析。` : '';
+        const contentTypeInstruction = options?.contentType ? `内容类型：${options.contentType}。` : '';
+        
         // 调用MastraClient的Agent
         const result = await client.getAgent(AGENT_ID).generate({
           messages: [
             {
               role: 'user',
-              content: `请分析这个网页并返回JSON格式的摘要，包含以下字段：
+              content: `${modeInstruction}${contentTypeInstruction}请分析这个内容并返回JSON格式的摘要，包含以下字段：
 {
-  "title": "页面标题",
+  "title": "标题",
   "summary": "内容摘要",
   "keyPoints": ["要点1", "要点2"],
   "keywords": ["关键词1", "关键词2"],
   "highlights": [],
-  "readingTime": "预计阅读时间"
+  "readingTime": "预计阅读时间",
+  "metadata": {
+    "mode": "处理模式",
+    "language": "语言",
+    "contentType": "内容类型",
+    "processingTime": 处理时间毫秒,
+    "cached": false,
+    "ragEnhanced": false,
+    "similarity": 0.0
+  },
+  "relatedContent": [],
+  "translations": {}
 }
 
-网页URL: ${url}`
+URL或内容: ${url}`
             }
           ]
         })
@@ -357,7 +372,8 @@ export const useSummarizer = () => {
   const analyzePageStream = useCallback(
     async (
       url: string,
-      onChunk?: (chunk: string) => void
+      onChunk?: (chunk: string) => void,
+      options?: { mode?: string; contentType?: string }
     ): Promise<SummaryData | null> => {
       if (!url.trim()) {
         setError('请输入有效的URL')
@@ -375,20 +391,24 @@ export const useSummarizer = () => {
 
         console.log('正在进行流式分析，URL:', API_BASE_URL, 'Agent ID:', AGENT_ID)
 
+        // 构建请求消息
+        const modeInstruction = options?.mode ? `请使用${options.mode}模式进行流式分析。` : '';
+        const contentTypeInstruction = options?.contentType ? `内容类型：${options.contentType}。` : '';
+
         // 尝试使用流式API - 优化请求参数
         const streamResponse = await client.getAgent(AGENT_ID).stream({
           messages: [
             {
               role: 'system',
-              content: '你是一个专业的网页内容分析助手。请逐步流式输出分析结果，不要等待完整分析完成再输出。立即开始输出，边分析边输出每个部分的结果。'
+              content: '你是一个专业的内容分析助手。请逐步流式输出分析结果，不要等待完整分析完成再输出。立即开始输出，边分析边输出每个部分的结果。'
             },
             {
               role: 'user',
-              content: `请立即开始流式分析这个网页：${url}
+              content: `${modeInstruction}${contentTypeInstruction}请立即开始流式分析这个内容：${url}
 
 要求：
-1. 立即输出 "🔍 开始分析网页..."
-2. 然后输出页面标题
+1. 立即输出 "🔍 开始分析内容..."
+2. 然后输出内容标题
 3. 逐句输出内容摘要，每分析一段就立即输出
 4. 输出关键要点，每发现一个要点就立即输出
 5. 最后输出关键词

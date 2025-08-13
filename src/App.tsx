@@ -5,6 +5,7 @@ import { SummaryCard } from './components/SummaryCard'
 import { HighlightView } from './components/HighlightView'
 import { HistoryPanel } from './components/HistoryPanel'
 import { StreamingDisplay } from './components/StreamingDisplay'
+import { ContentStatsCard } from './components/ContentStatsCard'
 import { useSummarizer } from './hooks/useSummarizer'
 import { AlertCircle, Wifi, WifiOff } from 'lucide-react'
 
@@ -22,6 +23,7 @@ function App() {
     history,
     isStreaming,
     streamingContent,
+    performanceMetrics,
     analyzePage,
     analyzePageStream,
     loadFromHistory,
@@ -160,15 +162,25 @@ function App() {
 
         {/* 结果展示区域 */}
         {currentData && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            {/* 左侧：摘要卡片 */}
-            <div className="space-y-6">
-              <SummaryCard data={currentData} />
-            </div>
+          <div className="space-y-8">
+            {/* 内容统计卡片 - 全宽显示 */}
+            <ContentStatsCard
+              contentStats={currentData.contentStats}
+              highlights={currentData.highlights}
+              title={currentData.title}
+              summary={currentData.summary}
+            />
+            
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              {/* 左侧：摘要卡片 */}
+              <div className="space-y-6">
+                <SummaryCard data={currentData} />
+              </div>
 
-            {/* 右侧：高亮显示 */}
-            <div className="space-y-6">
-              <HighlightView highlights={currentData.highlights} />
+              {/* 右侧：高亮显示 */}
+              <div className="space-y-6">
+                <HighlightView highlights={currentData.highlights} />
+              </div>
             </div>
           </div>
         )}
@@ -211,25 +223,38 @@ function App() {
                 </div>
               </div>
 
-              {/* API状态显示 */}
-              <div className="mt-6 flex items-center justify-center space-x-2">
-                <div
-                  className={`w-2 h-2 rounded-full ${
-                    apiStatus === 'online'
-                      ? 'bg-green-500'
+              {/* API状态和性能显示 */}
+              <div className="mt-6 space-y-2">
+                <div className="flex items-center justify-center space-x-2">
+                  <div
+                    className={`w-2 h-2 rounded-full ${
+                      apiStatus === 'online'
+                        ? 'bg-green-500'
+                        : apiStatus === 'offline'
+                        ? 'bg-red-500'
+                        : 'bg-yellow-500'
+                    }`}
+                  ></div>
+                  <span className="text-xs text-gray-500">
+                    API状态:{' '}
+                    {apiStatus === 'online'
+                      ? '在线'
                       : apiStatus === 'offline'
-                      ? 'bg-red-500'
-                      : 'bg-yellow-500'
-                  }`}
-                ></div>
-                <span className="text-xs text-gray-500">
-                  API状态:{' '}
-                  {apiStatus === 'online'
-                    ? '在线'
-                    : apiStatus === 'offline'
-                    ? '离线'
-                    : '检查中'}
-                </span>
+                      ? '离线'
+                      : '检查中'}
+                  </span>
+                </div>
+                
+                {/* 性能指标显示 */}
+                {performanceMetrics.requestCount > 0 && (
+                  <div className="flex items-center justify-center space-x-4 text-xs text-gray-400">
+                    <span>请求次数: {performanceMetrics.requestCount}</span>
+                    <span>平均响应: {performanceMetrics.averageResponseTime.toFixed(0)}ms</span>
+                    {performanceMetrics.lastRequestTime > 0 && (
+                      <span>上次响应: {performanceMetrics.lastRequestTime.toFixed(0)}ms</span>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           </div>

@@ -7,15 +7,25 @@ export interface SummaryData {
   readingTime: string;
   sourceUrl?: string;
   createdAt?: string;
+  contentStats?: ContentStats;
 }
 
 export interface HighlightItem {
-  id: string;
+  id?: string;
   text: string;
-  type: 'important' | 'quote' | 'statistic' | 'conclusion';
+  importance: 'high' | 'medium' | 'low';
+  category: string;
   context?: string;
   startIndex?: number;
   endIndex?: number;
+  // 兼容旧格式
+  type?: 'important' | 'quote' | 'statistic' | 'conclusion';
+}
+
+export interface ContentStats {
+  totalWords: number;
+  highlightCount: number;
+  importantHighlights: number;
 }
 
 export interface LoadingState {
